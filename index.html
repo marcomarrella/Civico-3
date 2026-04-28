@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Civico 3 — Gestione Prenotazioni</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f7f4ef;
+    --surface: #ffffff;
+    --surface2: #f0ece4;
+    --border: #e0d9ce;
+    --text: #1a1714;
+    --text-soft: #6b6259;
+    --accent: #2c4a3e;
+    --accent-light: #e8f0ec;
+    --airbnb: #e8453c;
+    --booking: #003580;
+    --phone: #1a7a4a;
+    --phone-bg: #e8f7ef;
+    --closed: #3a3530;
+    --gold: #c9a84c;
+    --radius: 12px;
+    --shadow: 0 2px 20px rgba(0,0,0,0.07);
+  }
+
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* SYNC BANNER */
+  .sync-bar {
+    background: #1e3328;
+    color: rgba(255,255,255,0.8);
+    font-size: 0.72rem;
+    padding: 5px 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: 0.03em;
+  }
+  .sync-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #4caf50;
+    flex-shrink: 0;
+    animation: blink 2s infinite;
+  }
+  .sync-dot.syncing { background: var(--gold); animation: blink 0.5s infinite; }
+  .sync-dot.error   { background: var(--airbnb); animation: none; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+  header {
+    background: var(--accent);
+    color: white;
+    padding: 20px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 4px 24px rgba(44,74,62,0.3);
+  }
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.8rem; font-weight: 700; letter-spacing: -0.02em;
+  }
+  header h1 span { color: var(--gold); }
+  .header-sub {
+    font-size: 0.75rem; opacity: 0.6; margin-top: 2px;
+    font-weight: 300; letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .stats { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .stat-pill {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 100px; padding: 5px 12px;
+    font-size: 0.73rem; display: flex; align-items: center; gap: 6px;
+  }
+  .stat-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  .main {
+    display: grid; grid-template-columns: 1fr 350px;
+    gap: 22px; padding: 22px 30px;
+    max-width: 1320px; margin: 0 auto;
+  }
+  .calendar-section { display: flex; flex-direction: column; gap: 18px; }
+
+  .month-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface); border-radius: var(--radius);
+    padding: 14px 22px; box-shadow: var(--shadow);
+  }
+  .month-nav h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem; font-weight: 600; text-transform: capitalize;
+  }
+  .nav-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; width: 34px; height: 34px;
+    cursor: pointer; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; color: var(--text);
+  }
+  .nav-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
+
+  .calendar-grid {
+    background: var(--surface); border-radius: var(--radius);
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .weekdays { display: grid; grid-template-columns: repeat(7,1fr); background: var(--accent); }
+  .weekday {
+    text-align: center; padding: 11px 0; font-size: 0.68rem;
+    font-weight: 500; color: rgba(255,255,255,0.7);
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .days-grid {
+    display: grid; grid-template-columns: repeat(7,1fr);
+    gap: 1px; background: var(--border);
+  }
+
+  .day-cell {
+    background: var(--surface); min-height: 84px; padding: 7px;
+    cursor: pointer; transition: all 0.13s;
+    position: relative; display: flex; flex-direction: column; gap: 3px;
+  }
+  .day-cell:hover { z-index: 2; box-shadow: 0 0 0 2px var(--accent); }
+  .day-cell.empty { background: var(--bg); cursor: default; }
+  .day-cell.empty:hover { box-shadow: none; }
+  .day-cell.today .day-num {
+    background: var(--gold); color: white; border-radius: 50%;
+    width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+    font-weight: 600;
+  }
+  .day-cell.past { opacity: 0.46; }
+
+  .day-cell.booked-airbnb  { background: #ffeeed; }
+  .day-cell.booked-booking { background: #e8f0ff; }
+  .day-cell.booked-phone   { background: var(--phone-bg); }
+  .day-cell.closed-owner   { background: #3a3530; }
+  .day-cell.closed-owner .day-num { color: rgba(255,255,255,0.5); }
+
+  .day-cell.checkout-airbnb  { background: linear-gradient(to bottom, #ffeeed 50%, #fff 50%); }
+  .day-cell.checkout-booking { background: linear-gradient(to bottom, #e8f0ff 50%, #fff 50%); }
+  .day-cell.checkout-phone   { background: linear-gradient(to bottom, var(--phone-bg) 50%, #fff 50%); }
+
+  .day-num { font-size: 0.78rem; font-weight: 500; color: var(--text-soft); line-height: 1; }
+  .booking-tags { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+  .booking-tag {
+    font-size: 0.6rem; font-weight: 500; border-radius: 4px;
+    padding: 2px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tag-airbnb  { background: var(--airbnb); color: white; }
+  .tag-booking { background: var(--booking); color: white; }
+  .tag-phone   { background: var(--phone);   color: white; }
+
+  .closed-label {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 3px;
+  }
+  .closed-icon { font-size: 1.2rem; }
+  .closed-text {
+    font-size: 0.55rem; color: rgba(255,255,255,0.48);
+    text-transform: uppercase; letter-spacing: 0.08em; font-weight: 500;
+  }
+  .checkout-badge {
+    font-size: 0.55rem; font-weight: 600; color: var(--text-soft);
+    background: rgba(255,255,255,0.9); border: 1px solid var(--border);
+    border-radius: 3px; padding: 1px 4px;
+    text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;
+  }
+
+  /* SIDEBAR */
+  .sidebar { display: flex; flex-direction: column; gap: 16px; }
+  .card {
+    background: var(--surface); border-radius: var(--radius);
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .card-header {
+    padding: 13px 18px; border-bottom: 1px solid var(--border);
+    font-family: 'Playfair Display', serif; font-size: 0.92rem; font-weight: 600;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .card-body { padding: 16px; }
+
+  label {
+    display: block; font-size: 0.7rem; font-weight: 500;
+    color: var(--text-soft); margin-bottom: 4px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  input, textarea {
+    width: 100%; padding: 9px 11px;
+    border: 1.5px solid var(--border); border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 0.84rem;
+    color: var(--text); background: var(--bg); outline: none;
+    transition: border-color 0.15s; margin-bottom: 11px;
+  }
+  input:focus, textarea:focus { border-color: var(--accent); background: white; }
+  textarea { resize: vertical; min-height: 58px; }
+
+  .source-buttons { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .source-btn {
+    flex: 1; min-width: 68px; padding: 8px 5px;
+    border: 2px solid var(--border); border-radius: 8px;
+    cursor: pointer; font-family: 'DM Sans', sans-serif;
+    font-size: 0.73rem; font-weight: 500; background: white;
+    transition: all 0.15s; display: flex; align-items: center;
+    justify-content: center; gap: 4px; color: var(--text);
+  }
+  .source-btn.active-airbnb  { background: var(--airbnb); border-color: var(--airbnb); color: white; }
+  .source-btn.active-booking { background: var(--booking); border-color: var(--booking); color: white; }
+  .source-btn.active-phone   { background: var(--phone);   border-color: var(--phone);   color: white; }
+  .source-btn.active-owner   { background: var(--closed);  border-color: var(--closed);  color: white; }
+
+  .btn-primary {
+    width: 100%; padding: 11px;
+    background: var(--accent); color: white; border: none;
+    border-radius: 8px; font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem; font-weight: 500; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-primary:hover { background: #1e3328; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; background: var(--accent); }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .form-row > div { display: flex; flex-direction: column; }
+  .form-row input { margin-bottom: 0; }
+
+  .type-label {
+    font-size: 0.7rem; font-weight: 500; color: var(--text-soft);
+    margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+
+  /* Booking items */
+  .booking-item {
+    padding: 11px 12px; border-radius: 8px; margin-bottom: 9px;
+    border-left: 4px solid; background: var(--bg);
+    position: relative; padding-top: 30px;
+  }
+  .booking-item.src-airbnb  { border-color: var(--airbnb); }
+  .booking-item.src-booking { border-color: var(--booking); }
+  .booking-item.src-phone   { border-color: var(--phone); background: #f0faf4; }
+  .booking-item.src-owner   { border-color: var(--closed); background: var(--surface2); }
+
+  .booking-item-header {
+    display: flex; align-items: flex-start;
+    justify-content: space-between; margin-bottom: 3px; gap: 6px;
+  }
+  .booking-name { font-weight: 500; font-size: 0.84rem; flex: 1; }
+  .booking-source-badge {
+    font-size: 0.6rem; font-weight: 600; padding: 2px 6px;
+    border-radius: 100px; text-transform: uppercase; letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .badge-airbnb  { background: var(--airbnb); color: white; }
+  .badge-booking { background: var(--booking); color: white; }
+  .badge-phone   { background: var(--phone);   color: white; }
+  .badge-owner   { background: var(--closed);  color: white; }
+
+  .booking-dates  { font-size: 0.72rem; color: var(--text-soft); margin-bottom: 2px; }
+  .booking-guests { font-size: 0.72rem; color: var(--accent); font-weight: 500; }
+  .booking-notes  { font-size: 0.72rem; color: var(--text-soft); margin-top: 3px; font-style: italic; }
+
+  .delete-btn {
+    position: absolute; top: 6px; right: 6px;
+    background: #fff0f0; border: 1px solid #ffc9c9; color: var(--airbnb);
+    cursor: pointer; font-size: 0.7rem; font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.13s; padding: 2px 7px; border-radius: 5px;
+    display: flex; align-items: center; gap: 2px;
+  }
+  .delete-btn:hover { background: var(--airbnb); color: white; border-color: var(--airbnb); }
+
+  /* Legend */
+  .legend { display: flex; flex-direction: column; gap: 6px; }
+  .legend-item { display: flex; align-items: center; gap: 9px; font-size: 0.76rem; color: var(--text-soft); }
+  .legend-swatch { width: 24px; height: 15px; border-radius: 3px; flex-shrink: 0; }
+
+  /* Scrollable list */
+  .bookings-scroll { max-height: 340px; overflow-y: auto; padding: 13px 16px; }
+  .bookings-scroll::-webkit-scrollbar { width: 3px; }
+  .bookings-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Day Modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45); z-index: 100;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(3px);
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white; border-radius: 16px; padding: 24px;
+    max-width: 430px; width: 92%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    animation: modalIn 0.2s ease;
+    max-height: 85vh; overflow-y: auto;
+  }
+  @keyframes modalIn {
+    from { transform: scale(0.95) translateY(10px); opacity: 0; }
+    to   { transform: scale(1) translateY(0); opacity: 1; }
+  }
+  .modal h3 { font-family: 'Playfair Display', serif; font-size: 1.15rem; margin-bottom: 3px; }
+  .modal-date { font-size: 0.76rem; color: var(--text-soft); margin-bottom: 16px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 10px; }
+  .btn-close-modal {
+    flex: 1; padding: 10px;
+    background: var(--surface2); border: 1.5px solid var(--border);
+    border-radius: 8px; font-family: 'DM Sans', sans-serif;
+    font-size: 0.83rem; cursor: pointer; transition: all 0.15s;
+    color: var(--text); font-weight: 500;
+  }
+  .btn-close-modal:hover { background: var(--border); }
+
+  /* Confirm modal */
+  .confirm-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55); z-index: 200;
+    align-items: center; justify-content: center; backdrop-filter: blur(4px);
+  }
+  .confirm-overlay.open { display: flex; }
+  .confirm-box {
+    background: white; border-radius: 14px; padding: 26px 24px 20px;
+    max-width: 340px; width: 90%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    animation: modalIn 0.18s ease; text-align: center;
+  }
+  .confirm-icon { font-size: 2rem; margin-bottom: 8px; }
+  .confirm-title { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 600; margin-bottom: 5px; }
+  .confirm-sub { font-size: 0.79rem; color: var(--text-soft); margin-bottom: 18px; line-height: 1.6; }
+  .confirm-name { font-weight: 600; color: var(--text); }
+  .confirm-btns { display: flex; gap: 10px; }
+  .btn-confirm-cancel {
+    flex: 1; padding: 9px;
+    background: var(--surface2); border: 1.5px solid var(--border);
+    border-radius: 8px; font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem; cursor: pointer; transition: all 0.15s;
+    color: var(--text); font-weight: 500;
+  }
+  .btn-confirm-cancel:hover { background: var(--border); }
+  .btn-confirm-delete {
+    flex: 1; padding: 9px;
+    background: var(--airbnb); border: none; border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 0.82rem;
+    cursor: pointer; transition: all 0.15s; color: white; font-weight: 600;
+  }
+  .btn-confirm-delete:hover { background: #c0392b; }
+
+  .empty-state { text-align: center; padding: 20px 10px; color: var(--text-soft); font-size: 0.78rem; }
+  .empty-icon { font-size: 1.7rem; margin-bottom: 6px; }
+
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; padding: 12px 14px; }
+    .stats { display: none; }
+    header { padding: 14px 18px; }
+    .sync-bar { padding: 4px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sync-bar">
+  <div class="sync-dot" id="syncDot"></div>
+  <span id="syncLabel">Connessione in corso...</span>
+</div>
+
+<header>
+  <div>
+    <h1>Civico <span>3</span></h1>
+    <div class="header-sub">Gestione Prenotazioni Condivisa</div>
+  </div>
+  <div class="stats" id="headerStats"></div>
+</header>
+
+<div class="main">
+
+  <!-- CALENDAR -->
+  <div class="calendar-section">
+    <div class="month-nav">
+      <button class="nav-btn" onclick="changeMonth(-1)">&#8592;</button>
+      <h2 id="monthTitle"></h2>
+      <button class="nav-btn" onclick="changeMonth(1)">&#8594;</button>
+    </div>
+    <div class="calendar-grid">
+      <div class="weekdays">
+        <div class="weekday">Lun</div><div class="weekday">Mar</div>
+        <div class="weekday">Mer</div><div class="weekday">Gio</div>
+        <div class="weekday">Ven</div><div class="weekday">Sab</div>
+        <div class="weekday">Dom</div>
+      </div>
+      <div class="days-grid" id="daysGrid"></div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <!-- FORM -->
+    <div class="card">
+      <div class="card-header">＋ Nuova Prenotazione</div>
+      <div class="card-body">
+        <div class="type-label">Canale</div>
+        <div class="source-buttons">
+          <button class="source-btn" id="btn-airbnb"  onclick="setSource('airbnb')">🏠 Airbnb</button>
+          <button class="source-btn" id="btn-booking" onclick="setSource('booking')">🌐 Booking</button>
+          <button class="source-btn" id="btn-phone"   onclick="setSource('phone')">📞 Telefono</button>
+          <button class="source-btn" id="btn-owner"   onclick="setSource('owner')">🔒 Chiusura</button>
+        </div>
+
+        <div id="guestFields" style="display:none">
+          <label>Nome ospite</label>
+          <input type="text" id="guestName" placeholder="Es. Mario Rossi">
+          <div class="form-row">
+            <div><label>Check-in</label><input type="date" id="dateFrom"></div>
+            <div><label>Checkout</label><input type="date" id="dateTo"></div>
+          </div>
+          <label>Numero persone</label>
+          <input type="number" id="guests" min="1" max="30" placeholder="Es. 2">
+          <label>Note</label>
+          <textarea id="notes" placeholder="Arrivo tardivo, animali, richieste speciali..."></textarea>
+        </div>
+
+        <div id="ownerFields" style="display:none">
+          <div class="form-row">
+            <div><label>Dal</label><input type="date" id="ownerFrom"></div>
+            <div><label>Al</label><input type="date" id="ownerTo"></div>
+          </div>
+          <label>Motivo</label>
+          <input type="text" id="ownerReason" placeholder="Es. Vacanza, viaggio di lavoro...">
+        </div>
+
+        <button class="btn-primary" id="addBtn" onclick="addBooking()" disabled>← Seleziona un canale</button>
+      </div>
+    </div>
+
+    <!-- LEGEND -->
+    <div class="card">
+      <div class="card-header">🎨 Legenda</div>
+      <div class="card-body">
+        <div class="legend">
+          <div class="legend-item">
+            <div class="legend-swatch" style="background:#ffeeed;border-left:3px solid var(--airbnb)"></div>Airbnb
+          </div>
+          <div class="legend-item">
+            <div class="legend-swatch" style="background:#e8f0ff;border-left:3px solid var(--booking)"></div>Booking.com
+          </div>
+          <div class="legend-item">
+            <div class="legend-swatch" style="background:var(--phone-bg);border-left:3px solid var(--phone)"></div>Telefono (diretto)
+          </div>
+          <div class="legend-item">
+            <div class="legend-swatch" style="background:linear-gradient(to bottom,#ffeeed 50%,#fff 50%);border:1px solid #e0d9ce"></div>Checkout (libero)
+          </div>
+          <div class="legend-item">
+            <div class="legend-swatch" style="background:#3a3530"></div>Casa chiusa (proprietario)
+          </div>
+          <div class="legend-item">
+            <div class="legend-swatch" style="background:#f7f4ef;border:1px solid #e0d9ce"></div>Libero
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOOKINGS LIST -->
+    <div class="card">
+      <div class="card-header">
+        📋 Prenotazioni
+        <span id="bookingCount" style="margin-left:auto;font-family:'DM Sans';font-size:0.73rem;background:var(--accent-light);color:var(--accent);padding:2px 8px;border-radius:100px;font-weight:500;"></span>
+      </div>
+      <div class="bookings-scroll" id="bookingList">
+        <div class="empty-state"><div class="empty-icon">⏳</div><div>Caricamento...</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL: day detail -->
+<div class="modal-overlay" id="dayModal">
+  <div class="modal">
+    <h3 id="modalTitle"></h3>
+    <div class="modal-date" id="modalDate"></div>
+    <div id="modalContent"></div>
+    <div class="modal-actions">
+      <button class="btn-close-modal" onclick="closeModal()">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: confirm delete -->
+<div class="confirm-overlay" id="confirmModal">
+  <div class="confirm-box">
+    <div class="confirm-icon">🗑️</div>
+    <div class="confirm-title">Cancella prenotazione</div>
+    <div class="confirm-sub" id="confirmSub"></div>
+    <div class="confirm-btns">
+      <button class="btn-confirm-cancel" onclick="closeConfirm()">Annulla</button>
+      <button class="btn-confirm-delete" onclick="confirmDelete()">Sì, cancella</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── STATE ───────────────────────────────────────────────────
+  let currentYear, currentMonth;
+  let bookings = [];
+  let selectedSource = null;
+  let pendingDeleteId = null;
+
+  const STORAGE_KEY = 'civico3_prenotazioni';
+
+  const LABEL = { airbnb:'Airbnb', booking:'Booking', phone:'Telefono', owner:'Chiuso' };
+  const ICON  = { airbnb:'🏠', booking:'🌐', phone:'📞', owner:'🔒' };
+
+  // ── INIT ────────────────────────────────────────────────────
+  async function init() {
+    const now = new Date();
+    currentYear  = now.getFullYear();
+    currentMonth = now.getMonth();
+    setSyncStatus('syncing', 'Connessione in corso...');
+    await loadData();
+    renderAll();
+    // Auto-refresh ogni 15 s per captare modifiche di altri utenti
+    setInterval(async () => {
+      await loadData();
+      renderAll();
+    }, 15000);
+  }
+
+  // ── SHARED STORAGE ──────────────────────────────────────────
+  async function loadData() {
+    try {
+      const r = await window.storage.get(STORAGE_KEY, true);
+      bookings = r ? JSON.parse(r.value) : [];
+      setSyncStatus('ok', 'Sincronizzato · visibile a tutto il team');
+    } catch {
+      bookings = [];
+      setSyncStatus('ok', 'Pronto · in attesa della prima prenotazione');
+    }
+  }
+
+  async function saveData() {
+    setSyncStatus('syncing', 'Salvataggio in corso...');
+    try {
+      await window.storage.set(STORAGE_KEY, JSON.stringify(bookings), true);
+      setSyncStatus('ok', 'Salvato · visibile a tutto il team');
+    } catch {
+      setSyncStatus('error', 'Errore di salvataggio — riprova');
+    }
+  }
+
+  function setSyncStatus(state, text) {
+    const dot   = document.getElementById('syncDot');
+    const label = document.getElementById('syncLabel');
+    dot.className = 'sync-dot' + (state !== 'ok' ? ' ' + state : '');
+    label.textContent = text;
+  }
+
+  // ── SOURCE SELECTION ────────────────────────────────────────
+  function setSource(src) {
+    selectedSource = src;
+    ['airbnb','booking','phone','owner'].forEach(s => {
+      document.getElementById('btn-'+s).className = 'source-btn' + (src === s ? ' active-'+s : '');
+    });
+    document.getElementById('guestFields').style.display = src === 'owner' ? 'none' : 'block';
+    document.getElementById('ownerFields').style.display = src === 'owner' ? 'block' : 'none';
+    const btn = document.getElementById('addBtn');
+    btn.disabled = false;
+    btn.textContent = src === 'owner' ? 'Chiudi i giorni selezionati' : 'Aggiungi prenotazione';
+  }
+
+  // ── ADD ─────────────────────────────────────────────────────
+  async function addBooking() {
+    if (!selectedSource) return;
+
+    if (selectedSource === 'owner') {
+      const from   = document.getElementById('ownerFrom').value;
+      const to     = document.getElementById('ownerTo').value;
+      const reason = document.getElementById('ownerReason').value.trim();
+      if (!from || !to) { alert('Inserisci le date.'); return; }
+      if (from > to)    { alert('La data di inizio deve essere prima della fine.'); return; }
+      bookings.push({ id: Date.now(), source: 'owner', from, to, reason: reason || 'Chiusura proprietario' });
+    } else {
+      const name   = document.getElementById('guestName').value.trim();
+      const from   = document.getElementById('dateFrom').value;
+      const to     = document.getElementById('dateTo').value;
+      const guests = document.getElementById('guests').value;
+      const notes  = document.getElementById('notes').value.trim();
+      if (!name || !from || !to) { alert('Inserisci nome e date.'); return; }
+      if (from >= to) { alert('Il checkout deve essere dopo il check-in.'); return; }
+      bookings.push({ id: Date.now(), source: selectedSource, name, from, to, guests: guests || 1, notes });
+    }
+
+    clearForm();
+    await saveData();
+    renderAll();
+  }
+
+  function clearForm() {
+    ['guestName','dateFrom','dateTo','guests','notes','ownerFrom','ownerTo','ownerReason'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+  }
+
+  // ── DELETE ──────────────────────────────────────────────────
+  function deleteBooking(id) {
+    const b = bookings.find(x => x.id === id);
+    if (!b) return;
+    pendingDeleteId = id;
+    const label = b.source === 'owner' ? b.reason : b.name;
+    document.getElementById('confirmSub').innerHTML =
+      `Vuoi davvero cancellare la prenotazione di<br><span class="confirm-name">${label}</span>?<br>
+       <small style="color:var(--text-soft)">Dal ${formatDate(b.from)} al ${formatDate(b.to)}</small>`;
+    document.getElementById('confirmModal').classList.add('open');
+  }
+
+  function closeConfirm() {
+    pendingDeleteId = null;
+    document.getElementById('confirmModal').classList.remove('open');
+  }
+
+  async function confirmDelete() {
+    if (pendingDeleteId === null) return;
+    bookings = bookings.filter(b => b.id !== pendingDeleteId);
+    pendingDeleteId = null;
+    document.getElementById('confirmModal').classList.remove('open');
+    closeModal();
+    await saveData();
+    renderAll();
+  }
+
+  // ── DATE HELPERS ────────────────────────────────────────────
+  function dateRange(from, to) {
+    const dates = [];
+    let d = new Date(from + 'T12:00:00');
+    const end = new Date(to + 'T12:00:00');
+    while (d <= end) { dates.push(d.toISOString().split('T')[0]); d.setDate(d.getDate()+1); }
+    return dates;
+  }
+  function getOccupancy(dateStr) {
+    return bookings.filter(b => {
+      if (b.source === 'owner') return dateRange(b.from, b.to).includes(dateStr);
+      return dateStr >= b.from && dateStr < b.to;
+    });
+  }
+  function getCheckouts(dateStr) {
+    return bookings.filter(b => b.source !== 'owner' && b.to === dateStr);
+  }
+  function getAllTouching(dateStr) {
+    return bookings.filter(b => dateRange(b.from, b.to).includes(dateStr));
+  }
+  function formatDate(s) {
+    if (!s) return '';
+    const [y,m,d] = s.split('-'); return `${d}/${m}/${y}`;
+  }
+
+  // ── RENDER ALL ──────────────────────────────────────────────
+  function renderAll() {
+    renderCalendar();
+    renderBookingList();
+    updateStats();
+  }
+
+  // ── CALENDAR ────────────────────────────────────────────────
+  function renderCalendar() {
+    const MONTHS = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
+                    'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+    document.getElementById('monthTitle').textContent = MONTHS[currentMonth] + ' ' + currentYear;
+
+    const grid = document.getElementById('daysGrid');
+    grid.innerHTML = '';
+
+    const firstDay    = new Date(currentYear, currentMonth, 1).getDay();
+    const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+    const daysInMonth = new Date(currentYear, currentMonth+1, 0).getDate();
+    const today       = new Date().toISOString().split('T')[0];
+
+    for (let i = 0; i < startOffset; i++) {
+      const e = document.createElement('div');
+      e.className = 'day-cell empty';
+      grid.appendChild(e);
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ds  = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const occ = getOccupancy(ds);
+      const outs = getCheckouts(ds);
+      const all  = getAllTouching(ds);
+
+      const cell = document.createElement('div');
+      cell.className = 'day-cell';
+      if (ds === today) cell.classList.add('today');
+      if (ds < today)  cell.classList.add('past');
+
+      const ownerClose = occ.find(b => b.source === 'owner');
+      const guestOcc   = occ.filter(b => b.source !== 'owner');
+
+      if (ownerClose) {
+        cell.classList.add('closed-owner');
+        cell.innerHTML = `<div class="day-num">${d}</div>
+          <div class="closed-label"><div class="closed-icon">🔒</div><div class="closed-text">Chiuso</div></div>`;
+
+      } else if (outs.length > 0 && guestOcc.length === 0) {
+        // Pure checkout
+        cell.classList.add('checkout-' + outs[0].source);
+        let tags = `<div class="checkout-badge">↩ ${outs[0].name}</div>`;
+        bookings.filter(b => b.source !== 'owner' && b.from === ds).forEach(b => {
+          tags += `<div class="booking-tag tag-${b.source}" style="margin-top:2px">${ICON[b.source]} ${b.name}</div>`;
+        });
+        cell.innerHTML = `<div class="day-num">${d}</div><div class="booking-tags">${tags}</div>`;
+
+      } else {
+        const srcPriority = ['airbnb','booking','phone'].find(s => guestOcc.some(b => b.source === s));
+        if (srcPriority) cell.classList.add('booked-' + srcPriority);
+
+        let tags = '';
+        outs.forEach(b => { tags += `<div class="checkout-badge">↩ ${b.name}</div>`; });
+        guestOcc.forEach(b => {
+          tags += `<div class="booking-tag tag-${b.source}">${ICON[b.source]} ${b.name}</div>`;
+        });
+        cell.innerHTML = `<div class="day-num">${d}</div><div class="booking-tags">${tags}</div>`;
+      }
+
+      cell.addEventListener('click', () => openDayModal(ds, d, all, outs));
+      grid.appendChild(cell);
+    }
+  }
+
+  // ── DAY MODAL ───────────────────────────────────────────────
+  function openDayModal(ds, dayNum, all, outs) {
+    const MONTHS = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
+                    'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+    document.getElementById('modalTitle').textContent = `${dayNum} ${MONTHS[currentMonth]} ${currentYear}`;
+    document.getElementById('modalDate').textContent  =
+      all.length === 0 ? 'Giorno libero' : `${all.length} prenotazione/i`;
+
+    let html = '';
+    if (all.length === 0) {
+      html = '<div class="empty-state"><div class="empty-icon">✨</div><div>Giorno libero</div></div>';
+    } else {
+      all.forEach(b => {
+        const isOut  = b.to   === ds && b.source !== 'owner';
+        const isIn   = b.from === ds && b.source !== 'owner';
+        let badge = LABEL[b.source];
+        if (isOut) badge = '↩ Checkout';
+        else if (isIn) badge = '↪ Check-in';
+
+        if (b.source === 'owner') {
+          html += `<div class="booking-item src-owner">
+            <button class="delete-btn" onclick="deleteBooking(${b.id})">✕ Cancella</button>
+            <div class="booking-item-header">
+              <span class="booking-name">🔒 ${b.reason}</span>
+              <span class="booking-source-badge badge-owner">Chiuso</span>
+            </div>
+            <div class="booking-dates">Dal ${formatDate(b.from)} al ${formatDate(b.to)}</div>
+          </div>`;
+        } else {
+          html += `<div class="booking-item src-${b.source}">
+            <button class="delete-btn" onclick="deleteBooking(${b.id})">✕ Cancella</button>
+            <div class="booking-item-header">
+              <span class="booking-name">${ICON[b.source]} ${b.name}</span>
+              <span class="booking-source-badge badge-${b.source}">${badge}</span>
+            </div>
+            <div class="booking-dates">Dal ${formatDate(b.from)} al ${formatDate(b.to)}</div>
+            <div class="booking-guests">👤 ${b.guests} ${parseInt(b.guests)===1?'persona':'persone'}</div>
+            ${b.notes ? `<div class="booking-notes">📝 ${b.notes}</div>` : ''}
+          </div>`;
+        }
+      });
+    }
+
+    document.getElementById('dateFrom').value  = ds;
+    document.getElementById('ownerFrom').value = ds;
+    document.getElementById('modalContent').innerHTML = html;
+    document.getElementById('dayModal').classList.add('open');
+  }
+
+  function closeModal() { document.getElementById('dayModal').classList.remove('open'); }
+  document.getElementById('dayModal').addEventListener('click', e => { if (e.target.id==='dayModal') closeModal(); });
+  document.getElementById('confirmModal').addEventListener('click', e => { if (e.target.id==='confirmModal') closeConfirm(); });
+
+  // ── BOOKING LIST ────────────────────────────────────────────
+  function renderBookingList() {
+    const list  = document.getElementById('bookingList');
+    const count = document.getElementById('bookingCount');
+    const sorted = [...bookings].sort((a,b) => a.from.localeCompare(b.from));
+    const guests = bookings.filter(b => b.source !== 'owner').length;
+    count.textContent = guests + ' ospiti';
+
+    if (sorted.length === 0) {
+      list.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div><div>Nessuna prenotazione ancora</div></div>';
+      return;
+    }
+
+    list.innerHTML = sorted.map(b => {
+      if (b.source === 'owner') {
+        return `<div class="booking-item src-owner">
+          <button class="delete-btn" onclick="deleteBooking(${b.id})">✕ Cancella</button>
+          <div class="booking-item-header">
+            <span class="booking-name">🔒 ${b.reason}</span>
+            <span class="booking-source-badge badge-owner">Chiuso</span>
+          </div>
+          <div class="booking-dates">Dal ${formatDate(b.from)} al ${formatDate(b.to)}</div>
+        </div>`;
+      }
+      return `<div class="booking-item src-${b.source}">
+        <button class="delete-btn" onclick="deleteBooking(${b.id})">✕ Cancella</button>
+        <div class="booking-item-header">
+          <span class="booking-name">${ICON[b.source]} ${b.name}</span>
+          <span class="booking-source-badge badge-${b.source}">${LABEL[b.source]}</span>
+        </div>
+        <div class="booking-dates">Dal ${formatDate(b.from)} al ${formatDate(b.to)}</div>
+        <div class="booking-guests">👤 ${b.guests} ${parseInt(b.guests)===1?'persona':'persone'}</div>
+        ${b.notes ? `<div class="booking-notes">📝 ${b.notes}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // ── STATS ───────────────────────────────────────────────────
+  function updateStats() {
+    const today    = new Date().toISOString().split('T')[0];
+    const upcoming = bookings.filter(b => b.source !== 'owner' && b.to >= today);
+    const colors   = { airbnb:'#e8453c', booking:'#6db8ff', phone:'#1a7a4a' };
+    document.getElementById('headerStats').innerHTML =
+      ['airbnb','booking','phone'].map(s =>
+        `<div class="stat-pill">
+          <div class="stat-dot" style="background:${colors[s]}"></div>
+          ${LABEL[s]}: ${upcoming.filter(b => b.source === s).length}
+        </div>`
+      ).join('');
+  }
+
+  function changeMonth(dir) {
+    currentMonth += dir;
+    if (currentMonth < 0)  { currentMonth = 11; currentYear--; }
+    if (currentMonth > 11) { currentMonth = 0;  currentYear++; }
+    renderCalendar();
+  }
+
+  init();
+</script>
+</body>
+</html>
